@@ -28,3 +28,6 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- Catalog data is read/written from the browser via the generated client with React Query (src/lib/catalog.ts); cart lives in localStorage via CartProvider (src/lib/cart.tsx) because there are no user accounts.
+- Pricing math lives in src/lib/pricing.ts so totals are consistent and tested.
