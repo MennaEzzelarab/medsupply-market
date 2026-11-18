@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Minus, Plus, ShoppingCart } from "lucide-react";
 import { productQuery } from "@/lib/catalog";
-import { formatKWD, lineTotal, packCount } from "@/lib/pricing";
+import { clampBundleQty, formatKWD, lineTotal, packCount } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
 import { Loading, ErrorState, Empty } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ export const Route = createFileRoute("/product/$id")({
       { name: "description", content: "Product details, brand, category and bundle pricing in KWD." },
       { property: "og:title", content: "Product details — MediShop" },
       { property: "og:description", content: "Product details, brand, category and bundle pricing in KWD." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ProductPage,
@@ -54,20 +56,20 @@ function ProductPage() {
               <p className="mb-2 text-sm font-semibold">Choose a bundle</p>
               <div className="grid gap-2">
                 {p.pricing_tiers.map((t) => (
-                  <button key={t.id} type="button" onClick={() => setTierId(t.id)}
-                    className={`flex items-center justify-between rounded-2xl border-2 px-4 py-3 text-left transition ${t.id === tier.id ? "border-primary bg-primary-tint" : "border-border hover:border-primary/50"}`}>
+                  <Button key={t.id} type="button" variant="outline" onClick={() => setTierId(t.id)}
+                    className={`flex h-auto items-center justify-between rounded-2xl border-2 px-4 py-3 text-left transition ${t.id === tier.id ? "border-primary bg-primary-tint" : "border-border hover:border-primary/50"}`}>
                     <span className="font-medium">{t.units_per_bundle} {t.units_per_bundle === 1 ? "pack" : "packs"} per bundle</span>
                     <span className="font-bold text-primary-deep">{formatKWD(t.bundle_price)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
             <div className="flex items-center gap-4">
               <p className="text-sm font-semibold">Bundles</p>
               <div className="flex items-center rounded-full border">
-                <Button variant="ghost" size="icon" className="rounded-full" aria-label="Decrease" onClick={() => setQty((v) => Math.max(1, v - 1))}><Minus className="h-4 w-4" /></Button>
-                <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} className="w-14 bg-transparent text-center font-semibold outline-none" aria-label="Bundle quantity" />
-                <Button variant="ghost" size="icon" className="rounded-full" aria-label="Increase" onClick={() => setQty((v) => v + 1)}><Plus className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="rounded-full" aria-label="Decrease" onClick={() => setQty((v) => clampBundleQty(v - 1))}><Minus className="h-4 w-4" /></Button>
+                <input type="number" min={1} max={99} step={1} value={qty} onChange={(e) => setQty(clampBundleQty(e.target.value))} className="w-14 bg-transparent text-center font-semibold outline-none" aria-label="Bundle quantity" />
+                <Button variant="ghost" size="icon" className="rounded-full" aria-label="Increase" onClick={() => setQty((v) => clampBundleQty(v + 1))}><Plus className="h-4 w-4" /></Button>
               </div>
             </div>
             <div className="rounded-2xl bg-muted p-5">

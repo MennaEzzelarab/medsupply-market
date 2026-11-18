@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useCart } from "@/lib/cart";
-import { formatKWD, lineTotal, packCount } from "@/lib/pricing";
+import { cartTotal, clampBundleQty, formatKWD, lineTotal, packCount } from "@/lib/pricing";
 import { Empty } from "@/components/states";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +13,8 @@ export const Route = createFileRoute("/cart")({
       { name: "description", content: "Review your bundles, quantities and totals in KWD." },
       { property: "og:title", content: "Your cart — MediShop" },
       { property: "og:description", content: "Review your bundles, quantities and totals in KWD." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: CartPage,
@@ -19,7 +22,7 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { lines, setQty, remove } = useCart();
-  const total = lines.reduce((s, l) => s + lineTotal(l.bundlePrice, l.bundleQty), 0);
+  const total = cartTotal(lines);
   if (lines.length === 0) return <Empty title="Your cart is empty"><Button asChild className="rounded-full"><Link to="/">Browse products</Link></Button></Empty>;
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
@@ -38,7 +41,7 @@ function CartPage() {
             <div className="flex items-center justify-between gap-4 sm:justify-end">
               <div className="flex items-center rounded-full border">
                 <Button variant="ghost" size="icon" className="rounded-full" aria-label="Decrease" onClick={() => setQty(l.tierId, l.bundleQty - 1)}><Minus className="h-4 w-4" /></Button>
-                <input type="number" min={1} value={l.bundleQty} onChange={(e) => setQty(l.tierId, Number(e.target.value) || 1)} className="w-12 bg-transparent text-center font-semibold outline-none" aria-label="Bundle quantity" />
+                <CartQuantityInput key={l.bundleQty} qty={l.bundleQty} onCommit={(qty) => setQty(l.tierId, qty)} />
                 <Button variant="ghost" size="icon" className="rounded-full" aria-label="Increase" onClick={() => setQty(l.tierId, l.bundleQty + 1)}><Plus className="h-4 w-4" /></Button>
               </div>
               <span className="w-28 text-right font-bold text-primary-deep">{formatKWD(lineTotal(l.bundlePrice, l.bundleQty))}</span>
@@ -54,4 +57,17 @@ function CartPage() {
       </aside>
     </div>
   );
+}
+
+function CartQuantityInput({ qty, onCommit }: { qty: number; onCommit: (qty: number) => void }) {
+  const [value, setValue] = useState(String(qty));
+  const commit = () => {
+    const next = clampBundleQty(value);
+    setValue(String(next));
+    onCommit(next);
+  };
+  return <input type="number" min={1} max={99} step={1} value={value}
+    onChange={(e) => setValue(e.target.value)} onBlur={commit}
+    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+    className="w-12 bg-transparent text-center font-semibold outline-none" aria-label="Bundle quantity" />;
 }

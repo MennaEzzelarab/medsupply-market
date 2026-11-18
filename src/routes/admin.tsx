@@ -21,6 +21,8 @@ export const Route = createFileRoute("/admin")({
       { name: "description", content: "Manage products, brands, categories and pricing tiers." },
       { property: "og:title", content: "Admin — MediShop" },
       { property: "og:description", content: "Manage products, brands, categories and pricing tiers." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Admin,
@@ -58,6 +60,29 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
     toast.success(ok); refresh();
   }
 
+  async function deleteNamed(item: Named) {
+    setBusy(true);
+    try {
+      const usage = await supabase.from("products").select("id", { count: "exact", head: true })
+        .eq(table === "brands" ? "brand_id" : "category_id", item.id);
+      if (usage.error) throw usage.error;
+      if (usage.count) {
+        toast.error(`This ${label} is used by ${usage.count} products. Reassign or delete them first`);
+        return;
+      }
+      if (!confirm(`Delete "${item.name}"?`)) return;
+      const { error } = await supabase.from(table).delete().eq("id", item.id);
+      if (error?.code === "23503") {
+        const current = await supabase.from("products").select("id", { count: "exact", head: true })
+          .eq(table === "brands" ? "brand_id" : "category_id", item.id);
+        toast.error(`This ${label} is used by ${current.count ?? "one or more"} products. Reassign or delete them first`);
+        return;
+      }
+      if (error) throw error;
+      toast.success("Deleted"); refresh();
+    } catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
+  }
+
   return (
     <div className="space-y-4">
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (!name.trim()) return; run(() => supabase.from(table).insert({ name: name.trim() }), `Added ${label}`).then(() => setName("")); }}>
@@ -75,7 +100,7 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
               </> : <>
                 <span className="flex-1 font-medium">{i.name}</span>
                 <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setEditing(i)}><Pencil className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => { if (confirm(`Delete "${i.name}"? Products using it will also be deleted.`)) run(() => supabase.from(table).delete().eq("id", i.id), "Deleted"); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                <Button size="icon" variant="ghost" aria-label="Delete" disabled={busy} onClick={() => deleteNamed(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </>}
             </li>
           ))}
@@ -84,7 +109,7 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
   );
 }
 
-type TierDraft = { units_per_bundle: string; bundle_price: string };
+type TierDraft = { id?: string; units_per_bundle: string; bundle_price: string };
 type Draft = { id?: string; name: string; description: string; image_url: string; brand_id: string; category_id: string; tiers: TierDraft[] };
 const emptyDraft = (): Draft => ({ name: "", description: "", image_url: "", brand_id: "", category_id: "", tiers: [{ units_per_bundle: "1", bundle_price: "" }] });
 
@@ -112,7 +137,7 @@ function ProductsAdmin() {
                 <p className="font-semibold">{p.name}</p>
                 <p className="text-xs text-muted-foreground">{p.brand?.name} · {p.category?.name} · {p.pricing_tiers.map((t) => `${t.units_per_bundle}× ${formatKWD(t.bundle_price)}`).join(" / ") || "no tiers"}</p>
               </div>
-              <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setDraft({ id: p.id, name: p.name, description: p.description, image_url: p.image_url, brand_id: p.brand_id, category_id: p.category_id, tiers: p.pricing_tiers.map((t) => ({ units_per_bundle: String(t.units_per_bundle), bundle_price: t.bundle_price.toFixed(3) })) })}><Pencil className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setDraft({ id: p.id, name: p.name, description: p.description, image_url: p.image_url, brand_id: p.brand_id, category_id: p.category_id, tiers: p.pricing_tiers.map((t) => ({ id: t.id, units_per_bundle: String(t.units_per_bundle), bundle_price: t.bundle_price.toFixed(3) })) })}><Pencil className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => del(p)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
             </li>
           ))}
@@ -133,21 +158,16 @@ function ProductDialog({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft 
 
   async function save() {
     if (!draft.name.trim() || !draft.brand_id || !draft.category_id) { toast.error("Name, brand and category are required"); return; }
-    const tiers = draft.tiers.map((t) => ({ units_per_bundle: Number(t.units_per_bundle), bundle_price: Number(t.bundle_price) }));
-    if (tiers.some((t) => !Number.isInteger(t.units_per_bundle) || t.units_per_bundle <= 0 || !(t.bundle_price > 0))) { toast.error("Each tier needs a whole number of packs and a price above 0"); return; }
+    const tiers = draft.tiers.map((t) => ({ id: t.id ?? null, units_per_bundle: Number(t.units_per_bundle), bundle_price: Number(t.bundle_price) }));
+    if (tiers.some((t) => !Number.isInteger(t.units_per_bundle) || t.units_per_bundle <= 0 || !Number.isFinite(t.bundle_price) || !(t.bundle_price > 0))) { toast.error("Each tier needs a whole number of packs and a price above 0"); return; }
     if (new Set(tiers.map((t) => t.units_per_bundle)).size !== tiers.length) { toast.error("Each tier must have a different pack count"); return; }
     setSaving(true);
     try {
-      const row = { name: draft.name.trim(), description: draft.description, image_url: draft.image_url, brand_id: draft.brand_id, category_id: draft.category_id };
-      let id = draft.id;
-      if (id) {
-        const { error } = await supabase.from("products").update(row).eq("id", id); if (error) throw error;
-        const { error: e2 } = await supabase.from("pricing_tiers").delete().eq("product_id", id); if (e2) throw e2;
-      } else {
-        const { data, error } = await supabase.from("products").insert(row).select("id").single(); if (error) throw error;
-        id = data.id;
-      }
-      if (tiers.length) { const { error } = await supabase.from("pricing_tiers").insert(tiers.map((t) => ({ ...t, product_id: id! }))); if (error) throw error; }
+      const { error } = await supabase.rpc("save_product", {
+        ...(draft.id ? { p_id: draft.id } : {}), p_name: draft.name.trim(), p_description: draft.description,
+        p_image_url: draft.image_url, p_brand_id: draft.brand_id, p_category_id: draft.category_id, p_tiers: tiers,
+      });
+      if (error) throw error;
       toast.success("Product saved"); qc.invalidateQueries({ queryKey: ["products"] }); setDraft(null);
     } catch (e) { toast.error(errMsg(e)); } finally { setSaving(false); }
   }

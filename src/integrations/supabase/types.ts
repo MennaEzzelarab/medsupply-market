@@ -129,7 +129,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      save_product: {
+        Args: {
+          p_brand_id?: string
+          p_category_id?: string
+          p_description?: string
+          p_id?: string
+          p_image_url?: string
+          p_name?: string
+          p_tiers?: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

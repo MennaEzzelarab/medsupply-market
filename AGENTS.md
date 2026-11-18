@@ -31,3 +31,6 @@ use the editor.
 
 - Catalog data is read/written from the browser via the generated client with React Query (src/lib/catalog.ts); cart lives in localStorage via CartProvider (src/lib/cart.tsx) because there are no user accounts.
 - Pricing math lives in src/lib/pricing.ts so totals are consistent and tested.
+- Normalize bundle quantities at every cart boundary and validate restored lines; keep cart input drafts local until blur to prevent corrupt persistence.
+- Save products and tier diffs through the security-invoker save_product RPC, preserving tier IDs and using a deferrable pack-count uniqueness constraint so all edits succeed or roll back together.
+- Restrict brand/category deletion while referenced, and check usage before deleting so catalog products cannot be removed accidentally.

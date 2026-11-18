@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
 import { productsQuery, brandsQuery, categoriesQuery, type Product, type Named } from "@/lib/catalog";
@@ -21,6 +22,8 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "Browse medical supplies by brand and category with bundle pricing in KWD." },
       { property: "og:title", content: "Shop medical supplies — MediShop" },
       { property: "og:description", content: "Browse medical supplies by brand and category with bundle pricing in KWD." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Home,
@@ -71,7 +74,8 @@ function Home() {
 
 function ProductCard({ p }: { p: Product }) {
   const { add } = useCart();
-  const first = p.pricing_tiers[0];
+  const [tierId, setTierId] = useState<string | null>(null);
+  const selected = p.pricing_tiers.find((t) => t.id === tierId) ?? p.pricing_tiers[0];
   return (
     <article className="flex flex-col overflow-hidden rounded-3xl border bg-card shadow-sm transition hover:shadow-md">
       <Link to="/product/$id" params={{ id: p.id }} className="aspect-[4/3] overflow-hidden bg-muted">
@@ -82,21 +86,24 @@ function ProductCard({ p }: { p: Product }) {
           <p className="text-xs font-semibold uppercase tracking-wider text-primary-deep">{p.brand?.name} · {p.category?.name}</p>
           <Link to="/product/$id" params={{ id: p.id }} className="mt-1 block font-bold hover:text-primary-deep">{p.name}</Link>
         </div>
-        <ul className="space-y-1.5">
+        <ul className="space-y-1.5" aria-label={`${p.name} bundle options`}>
           {p.pricing_tiers.map((t) => (
-            <li key={t.id} className="flex justify-between rounded-xl bg-muted px-3 py-2 text-sm">
-              <span>{t.units_per_bundle} {t.units_per_bundle === 1 ? "pack" : "packs"}</span>
-              <span className="font-semibold">{formatKWD(t.bundle_price)}</span>
+            <li key={t.id}>
+              <label className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm ${selected?.id === t.id ? "border-primary bg-primary-tint" : "border-transparent bg-muted"}`}>
+                <input type="radio" name={`tier-${p.id}`} checked={selected?.id === t.id} onChange={() => setTierId(t.id)} className="accent-primary" />
+                <span className="flex-1">{t.units_per_bundle} {t.units_per_bundle === 1 ? "pack" : "packs"}</span>
+                <span className="font-semibold">{formatKWD(t.bundle_price)}</span>
+              </label>
             </li>
           ))}
           {p.pricing_tiers.length === 0 && <li className="text-sm text-muted-foreground">No pricing yet</li>}
         </ul>
         <div className="mt-auto flex gap-2">
           <Button asChild variant="outline" className="flex-1 rounded-full"><Link to="/product/$id" params={{ id: p.id }}>Details</Link></Button>
-          <Button className="flex-1 rounded-full" disabled={!first} onClick={() => {
-            if (!first) return;
-            add({ productId: p.id, productName: p.name, imageUrl: p.image_url, tierId: first.id, unitsPerBundle: first.units_per_bundle, bundlePrice: first.bundle_price, bundleQty: 1 });
-            toast.success(`Added ${p.name} (${first.units_per_bundle}-pack bundle)`);
+          <Button className="flex-1 rounded-full" disabled={!selected} onClick={() => {
+            if (!selected) return;
+            add({ productId: p.id, productName: p.name, imageUrl: p.image_url, tierId: selected.id, unitsPerBundle: selected.units_per_bundle, bundlePrice: selected.bundle_price, bundleQty: 1 });
+            toast.success(`Added ${p.name} (${selected.units_per_bundle}-pack bundle)`);
           }}><ShoppingCart className="h-4 w-4" />Add</Button>
         </div>
       </div>
