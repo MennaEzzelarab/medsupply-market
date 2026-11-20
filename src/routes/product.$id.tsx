@@ -1,40 +1,99 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Minus, Plus, ShoppingCart } from "lucide-react";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { productQuery } from "@/lib/catalog";
 import { clampBundleQty, formatKWD, lineTotal, packCount } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
 import { Loading, ErrorState, Empty } from "@/components/states";
 import { Button } from "@/components/ui/button";
 
+const APP_NAME = "MediShop";
+const SITE_ORIGIN = "https://medbasket-tiered-market.lovable.app";
+const FALLBACK_DESCRIPTION = "Product details, brand, category and bundle pricing in KWD.";
+
+// Share previews want 1200x630; the stored photo is a plain 800px URL, so ask for a
+// share-sized crop of the same picture rather than shipping an oversized original.
+function shareImageUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:") return null;
+    url.searchParams.set("w", "1200");
+    url.searchParams.set("h", "630");
+    url.searchParams.set("fit", "crop");
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export const Route = createFileRoute("/product/$id")({
-  head: () => ({
-    meta: [
-      { title: "Product details — MediShop" },
-      { name: "description", content: "Product details, brand, category and bundle pricing in KWD." },
-      { property: "og:title", content: "Product details — MediShop" },
-      { property: "og:description", content: "Product details, brand, category and bundle pricing in KWD." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
+  // Primes the Query cache and hands the product to head(), so the title and og:title
+  // are correct in the served HTML. Unknown ids resolve to null instead of throwing.
+  loader: ({ params, context }) => context.queryClient.ensureQueryData(productQuery(params.id)),
+  head: ({ params, loaderData }) => {
+    const product = loaderData ?? null;
+    const title = product ? `${product.name} — ${APP_NAME}` : `Product — ${APP_NAME}`;
+    const description = product?.description.trim() || FALLBACK_DESCRIPTION;
+    const shareImage = product?.image_url ? shareImageUrl(product.image_url) : null;
+    const pageUrl = `${SITE_ORIGIN}/product/${params.id}`;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:url", content: pageUrl },
+        { property: "og:type", content: "product" },
+        { name: "twitter:card", content: shareImage ? "summary_large_image" : "summary" },
+        ...(shareImage
+          ? [
+              { property: "og:image", content: shareImage },
+              { name: "twitter:image", content: shareImage },
+            ]
+          : []),
+      ],
+      links: [{ rel: "canonical", href: pageUrl }],
+    };
+  },
+  pendingComponent: () => <Loading label="Loading product…" />,
+  errorComponent: ProductError,
+  notFoundComponent: ProductNotFound,
   component: ProductPage,
 });
 
+function ProductNotFound() {
+  return (
+    <Empty title="Product not found">
+      <Link to="/" className="text-sm font-medium text-primary-deep underline">Back to shop</Link>
+    </Empty>
+  );
+}
+
+function ProductError({ error }: ErrorComponentProps) {
+  const router = useRouter();
+  return (
+    <div className="space-y-4">
+      <ErrorState error={error} />
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" className="rounded-full" onClick={() => void router.invalidate()}>Try again</Button>
+        <Button asChild variant="ghost" className="rounded-full"><Link to="/">Back to shop</Link></Button>
+      </div>
+    </div>
+  );
+}
+
 function ProductPage() {
   const { id } = Route.useParams();
-  const q = useQuery(productQuery(id));
+  const { data: p } = useSuspenseQuery(productQuery(id));
   const { add } = useCart();
   const navigate = useNavigate();
   const [tierId, setTierId] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
 
-  if (q.isLoading) return <Loading label="Loading product…" />;
-  if (q.error) return <ErrorState error={q.error} />;
-  const p = q.data;
-  if (!p) return <Empty title="Product not found"><Link to="/" className="text-sm font-medium text-primary-deep underline">Back to shop</Link></Empty>;
+  if (!p) return <ProductNotFound />;
 
   const tier = p.pricing_tiers.find((t) => t.id === tierId) ?? p.pricing_tiers[0];
 

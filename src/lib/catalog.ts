@@ -63,9 +63,17 @@ export const productsQuery = queryOptions({
     return (data ?? []).map(norm);
   },
 });
+// A malformed id can never match a row, and asking Postgres for it raises an error
+// instead of returning nothing: resolve those ids to "not found" without a query.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}
+
 export const productQuery = (id: string) => queryOptions({
   queryKey: ["products", id],
   queryFn: async () => {
+    if (!isUuid(id)) return null;
     const { data, error } = await supabase.from("products").select(sel).eq("id", id).maybeSingle();
     if (error) throw error;
     return data ? norm(data) : null;
