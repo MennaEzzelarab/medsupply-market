@@ -170,7 +170,16 @@ function ProductsAdmin() {
         <ul className="divide-y rounded-3xl border bg-card">
           {q.data.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center gap-3 p-4">
-              <div className="h-12 w-12 overflow-hidden rounded-xl bg-muted">{p.image_url && <img src={p.image_url} alt="" className="h-full w-full object-cover" />}</div>
+              <div className="h-12 w-12 overflow-hidden rounded-xl bg-muted">{p.image_url && (
+                <img
+                  src={p.image_url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              )}</div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{p.name}</p>
                 <p className="text-xs text-muted-foreground">{p.brand?.name} · {p.category?.name} · {p.pricing_tiers.map((t) => `${t.units_per_bundle}× ${formatKWD(t.bundle_price)}`).join(" / ") || "no tiers"}</p>
@@ -192,7 +201,7 @@ function ProductsAdmin() {
     </div>
   );
 }
-
+/*
 function ProductDialog({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft | null) => void }) {
   const qc = useQueryClient();
   const brands = useQuery(brandsQuery);
@@ -245,6 +254,258 @@ function ProductDialog({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft 
           </div>
         </div>
         <DialogFooter><Button variant="ghost" onClick={() => setDraft(null)}>Cancel</Button><Button disabled={saving} onClick={save} className="rounded-full">{saving ? "Saving…" : "Save"}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+*/
+const isValidHttpUrl = (value: string) => {
+  if (!value.trim()) return true; // optional field; change to `false` if image URL should be required
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+function ProductDialog({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft | null) => void }) {
+  const qc = useQueryClient();
+  const brands = useQuery(brandsQuery);
+  const cats = useQuery(categoriesQuery);
+  const [saving, setSaving] = useState(false);
+
+  const set = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
+  const setTier = (i: number, patch: Partial<TierDraft>) =>
+    set({ tiers: draft.tiers.map((t, j) => (j === i ? { ...t, ...patch } : t)) });
+  const sel = "h-9 w-full rounded-md border border-input bg-background px-3 text-sm";
+
+  // Validation checks
+  const imageUrlValid = isValidHttpUrl(draft.image_url);
+  const parsedTiers = draft.tiers.map((t) => ({
+    id: t.id ?? null,
+    units_per_bundle: Number(t.units_per_bundle),
+    bundle_price: Number(t.bundle_price),
+  }));
+
+  const hasValidTiers =
+    parsedTiers.length >= 1 &&
+    parsedTiers.every(
+      (t) =>
+        Number.isInteger(t.units_per_bundle) &&
+        t.units_per_bundle > 0 &&
+        Number.isFinite(t.bundle_price) &&
+        t.bundle_price > 0
+    ) &&
+    new Set(parsedTiers.map((t) => t.units_per_bundle)).size === parsedTiers.length;
+
+  const isFormValid =
+    Boolean(draft.name.trim()) &&
+    Boolean(draft.brand_id) &&
+    Boolean(draft.category_id) &&
+    imageUrlValid &&
+    hasValidTiers;
+
+  async function save() {
+    if (!draft.name.trim() || !draft.brand_id || !draft.category_id) {
+      toast.error("Name, brand, and category are required");
+      return;
+    }
+    if (!imageUrlValid) {
+      toast.error("Please enter a valid http:// or https:// image URL");
+      return;
+    }
+    if (parsedTiers.length === 0) {
+      toast.error("At least one pricing tier is required");
+      return;
+    }
+    if (
+      parsedTiers.some(
+        (t) =>
+          !Number.isInteger(t.units_per_bundle) ||
+          t.units_per_bundle <= 0 ||
+          !Number.isFinite(t.bundle_price) ||
+          !(t.bundle_price > 0)
+      )
+    ) {
+      toast.error("Each tier needs a whole number of packs and a price above 0");
+      return;
+    }
+    if (new Set(parsedTiers.map((t) => t.units_per_bundle)).size !== parsedTiers.length) {
+      toast.error("Each tier must have a different pack count");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.rpc("save_product", {
+        ...(draft.id ? { p_id: draft.id } : {}),
+        p_name: draft.name.trim(),
+        p_description: draft.description,
+        p_image_url: draft.image_url.trim(),
+        p_brand_id: draft.brand_id,
+        p_category_id: draft.category_id,
+        p_tiers: parsedTiers,
+      });
+      if (error) throw error;
+      toast.success("Product saved");
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setDraft(null);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && setDraft(null)}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{draft.id ? "Edit product" : "New product"}</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Fields marked with <span className="text-destructive">*</span> are required.
+          </p>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>
+              Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              value={draft.name}
+              onChange={(e) => set({ name: e.target.value })}
+              placeholder="e.g., Digital Infrared Thermometer"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Description</Label>
+            <Textarea
+              value={draft.description}
+              onChange={(e) => set({ description: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Image URL</Label>
+            <Input
+              value={draft.image_url}
+              onChange={(e) => set({ image_url: e.target.value })}
+              placeholder="https://…"
+              aria-invalid={!imageUrlValid}
+            />
+            {!imageUrlValid && (
+              <p className="text-xs text-destructive">
+                Enter a valid URL starting with http:// or https://
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>
+                Brand <span className="text-destructive">*</span>
+              </Label>
+              <select
+                className={sel}
+                value={draft.brand_id}
+                onChange={(e) => set({ brand_id: e.target.value })}
+              >
+                <option value="">Select…</option>
+                {brands.data?.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>
+                Category <span className="text-destructive">*</span>
+              </Label>
+              <select
+                className={sel}
+                value={draft.category_id}
+                onChange={(e) => set({ category_id: e.target.value })}
+              >
+                <option value="">Select…</option>
+                {cats.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>
+              Pricing tiers <span className="text-destructive">*</span>{" "}
+              <span className="text-xs font-normal text-muted-foreground">(at least 1)</span>
+            </Label>
+            {draft.tiers.map((t, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-2xl bg-muted p-2">
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={t.units_per_bundle}
+                  onChange={(e) => setTier(i, { units_per_bundle: e.target.value })}
+                  aria-label="Packs per bundle"
+                  className="bg-background"
+                />
+                <span className="text-xs text-muted-foreground">packs</span>
+                <Input
+                  type="number"
+                  min={0.001}
+                  step={0.001}
+                  value={t.bundle_price}
+                  onChange={(e) => setTier(i, { bundle_price: e.target.value })}
+                  aria-label="Bundle price"
+                  placeholder="0.000"
+                  className="bg-background"
+                />
+                <span className="text-xs text-muted-foreground">KWD</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Remove tier"
+                  disabled={draft.tiers.length <= 1}
+                  onClick={() => set({ tiers: draft.tiers.filter((_, j) => j !== i) })}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={() =>
+                set({ tiers: [...draft.tiers, { units_per_bundle: "", bundle_price: "" }] })
+              }
+            >
+              <Plus className="h-4 w-4" />
+              Add tier
+            </Button>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setDraft(null)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={saving || !isFormValid}
+            onClick={save}
+            className="rounded-full"
+          >
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

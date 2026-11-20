@@ -50,9 +50,9 @@ export const Route = createFileRoute("/product/$id")({
         { name: "twitter:card", content: shareImage ? "summary_large_image" : "summary" },
         ...(shareImage
           ? [
-              { property: "og:image", content: shareImage },
-              { name: "twitter:image", content: shareImage },
-            ]
+            { property: "og:image", content: shareImage },
+            { name: "twitter:image", content: shareImage },
+          ]
           : []),
       ],
       links: [{ rel: "canonical", href: pageUrl }],
@@ -101,7 +101,18 @@ function ProductPage() {
     <div className="space-y-6">
       <Link to="/" className="inline-flex items-center gap-1 text-sm font-medium text-primary-deep"><ArrowLeft className="h-4 w-4" />Back to shop</Link>
       <div className="grid gap-8 md:grid-cols-2">
-        <div className="overflow-hidden rounded-3xl bg-muted">{p.image_url && <img src={p.image_url} alt={p.name} className="aspect-square w-full object-cover" />}</div>
+        <div className="overflow-hidden rounded-3xl bg-muted">
+          {p.image_url && (
+            <img
+              src={p.image_url}
+              alt={p.name}
+              className="aspect-square w-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          )}
+        </div>
         <div className="space-y-6">
           <div>
             <div className="flex flex-wrap gap-2 text-xs font-semibold">

@@ -122,7 +122,17 @@ function ProductCard({ p }: { p: Product }) {
   return (
     <article className="flex flex-col overflow-hidden rounded-3xl border bg-card shadow-sm transition hover:shadow-md">
       <Link to="/product/$id" params={{ id: p.id }} className="aspect-[4/3] overflow-hidden bg-muted">
-        {p.image_url && <img src={p.image_url} alt={p.name} loading="lazy" className="h-full w-full object-cover" />}
+        {p.image_url && (
+          <img
+            src={p.image_url}
+            alt={p.name}
+            loading="lazy"
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
       </Link>
       <div className="flex flex-1 flex-col gap-4 p-5">
         <div>

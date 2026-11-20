@@ -38,7 +38,18 @@ function CartPage() {
         {lines.map((l) => (
           <div key={l.tierId} className="flex flex-col gap-4 rounded-3xl border bg-card p-4 sm:flex-row sm:items-center">
             <div className="flex flex-1 items-center gap-4">
-              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-muted">{l.imageUrl && <img src={l.imageUrl} alt="" className="h-full w-full object-cover" />}</div>
+              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-muted">
+                {l.imageUrl && (
+                  <img
+                    src={l.imageUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
+              </div>
               <div className="min-w-0">
                 <Link to="/product/$id" params={{ id: l.productId }} className="font-bold hover:text-primary-deep">{l.productName}</Link>
                 <p className="text-sm text-muted-foreground">{l.unitsPerBundle}-pack bundle · {formatKWD(l.bundlePrice)} / bundle</p>
