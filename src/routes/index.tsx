@@ -1,20 +1,22 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart } from "lucide-react";
-import { productsQuery, brandsQuery, categoriesQuery, type Product, type Named } from "@/lib/catalog";
+import { Search as SearchIcon, ShoppingCart } from "lucide-react";
+import { filterAndSortProducts, productsQuery, brandsQuery, categoriesQuery, type Product, type Named, type ProductSort } from "@/lib/catalog";
 import { formatKWD } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
 import { Loading, ErrorState, Empty } from "@/components/states";
 import { Button } from "@/components/ui/button";
 
-type Search = { brand?: string | undefined; category?: string | undefined };
+type ProductSearch = { brand?: string | undefined; category?: string | undefined; q?: string | undefined; sort?: ProductSort | undefined };
 
 export const Route = createFileRoute("/")({
-  validateSearch: (s: Record<string, unknown>): Search => ({
+  validateSearch: (s: Record<string, unknown>): ProductSearch => ({
     brand: typeof s["brand"] === "string" ? s["brand"] : undefined,
     category: typeof s["category"] === "string" ? s["category"] : undefined,
+    q: typeof s["q"] === "string" ? s["q"] : undefined,
+    sort: s["sort"] === "price-asc" || s["sort"] === "price-desc" || s["sort"] === "name" ? s["sort"] : undefined,
   }),
   head: () => ({
     meta: [
@@ -35,9 +37,9 @@ function FilterList({ title, items, active, param }: { title: string; items: Nam
     <div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
       <div className="flex flex-wrap gap-2">
-        <Link to="/" search={(p: Search) => ({ ...p, [param]: undefined }) as Search} className={chip(!active)}>All</Link>
+        <Link to="/" search={(p: ProductSearch) => ({ ...p, [param]: undefined }) as ProductSearch} className={chip(!active)}>All</Link>
         {items.map((i) => (
-          <Link key={i.id} to="/" search={(p: Search) => ({ ...p, [param]: i.id }) as Search} className={chip(active === i.id)}>{i.name}</Link>
+          <Link key={i.id} to="/" search={(p: ProductSearch) => ({ ...p, [param]: i.id }) as ProductSearch} className={chip(active === i.id)}>{i.name}</Link>
         ))}
       </div>
     </div>
@@ -45,12 +47,13 @@ function FilterList({ title, items, active, param }: { title: string; items: Nam
 }
 
 function Home() {
-  const { brand, category } = Route.useSearch();
+  const { brand, category, q = "", sort = "name" } = Route.useSearch();
+  const navigate = useNavigate({ from: "/" });
   const products = useQuery(productsQuery);
   const brands = useQuery(brandsQuery);
   const cats = useQuery(categoriesQuery);
 
-  const list = (products.data ?? []).filter((p) => (!brand || p.brand_id === brand) && (!category || p.category_id === category));
+  const list = filterAndSortProducts(products.data ?? [], { brand, category, q, sort });
 
   return (
     <div className="space-y-10">
@@ -62,6 +65,45 @@ function Home() {
       <section className="space-y-4">
         {brands.data && <FilterList title="Brands" items={brands.data} active={brand} param="brand" />}
         {cats.data && <FilterList title="Categories" items={cats.data} active={category} param="category" />}
+      </section>
+
+      <section className="space-y-3" aria-label="Product search and sorting">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="product-search" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Search products</label>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                id="product-search"
+                type="search"
+                value={q}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  void navigate({ replace: true, search: (previous: ProductSearch) => ({ ...previous, q: value || undefined }) });
+                }}
+                placeholder="Search by name or description"
+                className="w-full rounded-full border bg-background py-2.5 pl-11 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+          <div className="sm:w-56">
+            <label htmlFor="product-sort" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sort by</label>
+            <select
+              id="product-sort"
+              value={sort}
+              onChange={(event) => {
+                const value = event.target.value as ProductSort;
+                void navigate({ replace: true, search: (previous: ProductSearch) => ({ ...previous, sort: value }) });
+              }}
+              className="w-full rounded-full border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="name">Name A–Z</option>
+              <option value="price-asc">Price low to high</option>
+              <option value="price-desc">Price high to low</option>
+            </select>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground" aria-live="polite">{list.length} products</p>
       </section>
 
       {products.isLoading ? <Loading label="Loading products…" /> :

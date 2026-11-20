@@ -9,6 +9,41 @@ export type Product = {
   brand: Named | null; category: Named | null; pricing_tiers: Tier[];
 };
 
+export type ProductSort = "name" | "price-asc" | "price-desc";
+export type ProductFilters = {
+  brand?: string | undefined;
+  category?: string | undefined;
+  q?: string | undefined;
+  sort?: ProductSort | undefined;
+};
+
+function lowestTierPrice(product: Product): number | null {
+  if (product.pricing_tiers.length === 0) return null;
+  return Math.min(...product.pricing_tiers.map((tier) => tier.bundle_price));
+}
+
+export function filterAndSortProducts(products: Product[], filters: ProductFilters): Product[] {
+  const query = filters.q?.trim().toLowerCase() ?? "";
+  const filtered = products.filter((product) =>
+    (!filters.brand || product.brand_id === filters.brand) &&
+    (!filters.category || product.category_id === filters.category) &&
+    (!query || `${product.name} ${product.description}`.toLowerCase().includes(query)),
+  );
+
+  return [...filtered].sort((a, b) => {
+    if (filters.sort === "price-asc" || filters.sort === "price-desc") {
+      const aPrice = lowestTierPrice(a);
+      const bPrice = lowestTierPrice(b);
+      if (aPrice === null || bPrice === null) {
+        if (aPrice !== bPrice) return aPrice === null ? 1 : -1;
+      } else if (aPrice !== bPrice) {
+        return filters.sort === "price-asc" ? aPrice - bPrice : bPrice - aPrice;
+      }
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
 const sel = "id,name,description,image_url,brand_id,category_id,brand:brands(id,name),category:categories(id,name),pricing_tiers(id,product_id,units_per_bundle,bundle_price)";
 
 function norm(p: any): Product {
