@@ -116,6 +116,7 @@ function Home() {
 
 function ProductCard({ p }: { p: Product }) {
   const { add } = useCart();
+  const navigate = useNavigate();
   const [tierId, setTierId] = useState<string | null>(null);
   const selected = p.pricing_tiers.find((t) => t.id === tierId) ?? p.pricing_tiers[0];
   return (
@@ -145,7 +146,9 @@ function ProductCard({ p }: { p: Product }) {
           <Button className="flex-1 rounded-full" disabled={!selected} onClick={() => {
             if (!selected) return;
             add({ productId: p.id, productName: p.name, imageUrl: p.image_url, tierId: selected.id, unitsPerBundle: selected.units_per_bundle, bundlePrice: selected.bundle_price, bundleQty: 1 });
-            toast.success(`Added ${p.name} (${selected.units_per_bundle}-pack bundle)`);
+            toast.success(`Added ${p.name} (${selected.units_per_bundle}-pack bundle)`, {
+              action: { label: "View cart", onClick: () => void navigate({ to: "/cart" }) },
+            });
           }}><ShoppingCart className="h-4 w-4" />Add</Button>
         </div>
       </div>

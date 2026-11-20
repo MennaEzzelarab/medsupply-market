@@ -5,6 +5,7 @@ import { useCart } from "@/lib/cart";
 import { cartTotal, clampBundleQty, formatKWD, lineTotal, packCount } from "@/lib/pricing";
 import { Empty } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -21,13 +22,19 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { lines, setQty, remove } = useCart();
+  const { lines, setQty, remove, clear } = useCart();
+  const [clearOpen, setClearOpen] = useState(false);
   const total = cartTotal(lines);
   if (lines.length === 0) return <Empty title="Your cart is empty"><Button asChild className="rounded-full"><Link to="/">Browse products</Link></Button></Empty>;
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
-        <h1 className="text-2xl font-extrabold">Your cart</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-extrabold">Your cart</h1>
+          <Button variant="outline" className="rounded-full" onClick={() => setClearOpen(true)}>
+            <Trash2 className="h-4 w-4" />Clear cart
+          </Button>
+        </div>
         {lines.map((l) => (
           <div key={l.tierId} className="flex flex-col gap-4 rounded-3xl border bg-card p-4 sm:flex-row sm:items-center">
             <div className="flex flex-1 items-center gap-4">
@@ -55,6 +62,14 @@ function CartPage() {
         <div className="flex justify-between text-sm"><span>Lines</span><span>{lines.length}</span></div>
         <div className="flex justify-between border-t pt-4"><span className="font-semibold">Total</span><span className="text-xl font-extrabold text-primary-deep">{formatKWD(total)}</span></div>
       </aside>
+      <ConfirmDialog
+        open={clearOpen}
+        onOpenChange={setClearOpen}
+        title="Clear your cart?"
+        description="This will remove every product and bundle from your cart."
+        confirmLabel="Clear cart"
+        onConfirm={clear}
+      />
     </div>
   );
 }

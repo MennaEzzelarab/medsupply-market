@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ function ProductPage() {
   const { id } = Route.useParams();
   const q = useQuery(productQuery(id));
   const { add } = useCart();
+  const navigate = useNavigate();
   const [tierId, setTierId] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
 
@@ -78,7 +79,9 @@ function ProductPage() {
             </div>
             <Button size="lg" className="w-full rounded-full" onClick={() => {
               add({ productId: p.id, productName: p.name, imageUrl: p.image_url, tierId: tier.id, unitsPerBundle: tier.units_per_bundle, bundlePrice: tier.bundle_price, bundleQty: qty });
-              toast.success("Added to cart");
+              toast.success("Added to cart", {
+                action: { label: "View cart", onClick: () => void navigate({ to: "/cart" }) },
+              });
             }}><ShoppingCart className="h-4 w-4" />Add to cart</Button>
           </>}
         </div>

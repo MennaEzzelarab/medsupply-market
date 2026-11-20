@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -49,6 +50,7 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
   const q = useQuery(table === "brands" ? brandsQuery : categoriesQuery);
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<Named | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Named | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = () => { qc.invalidateQueries({ queryKey: [table] }); qc.invalidateQueries({ queryKey: ["products"] }); };
 
@@ -60,7 +62,7 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
     toast.success(ok); refresh();
   }
 
-  async function deleteNamed(item: Named) {
+  async function requestDelete(item: Named) {
     setBusy(true);
     try {
       const usage = await supabase.from("products").select("id", { count: "exact", head: true })
@@ -70,7 +72,13 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
         toast.error(`This ${label} is used by ${usage.count} products. Reassign or delete them first`);
         return;
       }
-      if (!confirm(`Delete "${item.name}"?`)) return;
+      setPendingDelete(item);
+    } catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
+  }
+
+  async function deleteNamed(item: Named) {
+    setBusy(true);
+    try {
       const { error } = await supabase.from(table).delete().eq("id", item.id);
       if (error?.code === "23503") {
         const current = await supabase.from("products").select("id", { count: "exact", head: true })
@@ -100,11 +108,20 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
               </> : <>
                 <span className="flex-1 font-medium">{i.name}</span>
                 <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setEditing(i)}><Pencil className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" aria-label="Delete" disabled={busy} onClick={() => deleteNamed(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                <Button size="icon" variant="ghost" aria-label="Delete" disabled={busy} onClick={() => requestDelete(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </>}
             </li>
           ))}
         </ul>}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        title={pendingDelete ? `Delete "${pendingDelete.name}"?` : `Delete ${label}?`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        busy={busy}
+        onConfirm={() => { if (pendingDelete) void deleteNamed(pendingDelete); }}
+      />
     </div>
   );
 }
@@ -117,9 +134,9 @@ function ProductsAdmin() {
   const qc = useQueryClient();
   const q = useQuery(productsQuery);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Product | null>(null);
 
   async function del(p: Product) {
-    if (!confirm(`Delete "${p.name}"?`)) return;
     const { error } = await supabase.from("products").delete().eq("id", p.id);
     if (error) { toast.error(errMsg(error)); return; }
     toast.success("Product deleted"); qc.invalidateQueries({ queryKey: ["products"] });
@@ -138,11 +155,19 @@ function ProductsAdmin() {
                 <p className="text-xs text-muted-foreground">{p.brand?.name} · {p.category?.name} · {p.pricing_tiers.map((t) => `${t.units_per_bundle}× ${formatKWD(t.bundle_price)}`).join(" / ") || "no tiers"}</p>
               </div>
               <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setDraft({ id: p.id, name: p.name, description: p.description, image_url: p.image_url, brand_id: p.brand_id, category_id: p.category_id, tiers: p.pricing_tiers.map((t) => ({ id: t.id, units_per_bundle: String(t.units_per_bundle), bundle_price: t.bundle_price.toFixed(3) })) })}><Pencil className="h-4 w-4" /></Button>
-              <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => del(p)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+              <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => setPendingDelete(p)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
             </li>
           ))}
         </ul>}
       {draft && <ProductDialog draft={draft} setDraft={setDraft} />}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        title={pendingDelete ? `Delete "${pendingDelete.name}"?` : "Delete product?"}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => { if (pendingDelete) void del(pendingDelete); }}
+      />
     </div>
   );
 }
