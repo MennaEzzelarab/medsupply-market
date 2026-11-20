@@ -103,13 +103,13 @@ function Home() {
             </select>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground" aria-live="polite">{list.length} products</p>
+        <p className="text-sm text-muted-foreground" aria-live="polite">{list.length} {list.length === 1 ? "product" : "products"}</p>
       </section>
 
       {products.isLoading ? <Loading label="Loading products…" /> :
         products.error ? <ErrorState error={products.error} /> :
-        list.length === 0 ? <Empty title="No products match these filters"><Link to="/" search={{}} className="text-sm font-medium text-primary-deep underline">Clear filters</Link></Empty> :
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{list.map((p) => <ProductCard key={p.id} p={p} />)}</div>}
+          list.length === 0 ? <Empty title="No products match these filters"><Link to="/" search={{}} className="text-sm font-medium text-primary-deep underline">Clear filters</Link></Empty> :
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{list.map((p) => <ProductCard key={p.id} p={p} />)}</div>}
     </div>
   );
 }
