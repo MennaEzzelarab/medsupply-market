@@ -103,7 +103,19 @@ function NamedAdmin({ table, label }: { table: "brands" | "categories"; label: s
             <li key={i.id} className="flex items-center gap-2 p-3">
               {editing?.id === i.id ? <>
                 <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="flex-1" />
-                <Button size="sm" disabled={busy} onClick={() => run(() => supabase.from(table).update({ name: editing.name.trim() }).eq("id", i.id), "Saved").then(() => setEditing(null))}>Save</Button>
+                <Button
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!editing.name.trim()) {
+                      toast.error(`${label[0].toUpperCase() + label.slice(1)} name is required`);
+                      return;
+                    }
+                    run(() => supabase.from(table).update({ name: editing.name.trim() }).eq("id", i.id), "Saved").then(() => setEditing(null));
+                  }}
+                >
+                  Save
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
               </> : <>
                 <span className="flex-1 font-medium">{i.name}</span>
