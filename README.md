@@ -1,26 +1,119 @@
-# MedSupply Market
+# MediShop — Medical E-Commerce with Multi-Tier Pricing
 
-Build a medical e-commerce app with React + TypeScript + Tailwind, using a real Postgres backend. Tables: brands, categories, products (name, description, image_url, brand_id, category_id), pricing_tiers (product_id, units_per_bundle, bundle_price) with ON DELETE CASCADE and CHECK constraints for positive values. Pages: (1) Home/product listing with brand and category lists that filter products, showing each product’s image, name and all pricing tiers, with a link to details and an add-to-cart option. (2) Product details page with info, brand, category and all tiers; user picks a tier and bundle quantity, price is calculated automatically, then add to cart. (3) Cart where each line shows product, selected tier, bundle quantity and line price; allow quantity update and removal; different tiers of the same product are separate lines; line total = bundle_price × bundle quantity (bundle price is NOT per pack); internal pack quantity = units_per_bundle × bundle quantity. (4) /admin for CRUD on products, brands, categories and a dynamic pricing-tier editor (any number of tiers). All prices display in KWD with 3 decimals. Include loading, error and empty states and a responsive layout. Seed 3 products: A with 1 tier (1 pack), B with 2 tiers (1/4 packs), C with 3 tiers (1/4/12 packs at 5.500/19.500/55.000 KWD), across 2 brands and 2 categories.
+A full-stack medical supply e-commerce application built with **React 19**, **TypeScript**, **Tailwind CSS v4**, and a real **PostgreSQL** database. 
 
-Theme: primary color #0caca7 (teal), clean medical look, lots of white space, rounded cards. Use dark text on primary-colored buttons for contrast, a darker teal (#087e7a) for teal text on white, and a light teal tint (#e6f7f6) for backgrounds.
+It implements dynamic multi-tier volume pricing, cart calculations where bundle pricing is strictly per-bundle (not per-pack), an atomic product management admin panel, and an accessible medical-grade design system.
 
-This project was built with [Lovable](https://lovable.dev).
+---
 
-## Build with Lovable
+## 1. Live Deployment & Key Links
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/05c25fcc-49f2-45c4-be08-4f71ff187979).
+- **Live Application:** [https://medbasket-tiered-market.lovable.app](https://medbasket-tiered-market.lovable.app)
+- **Admin Management:** [https://medbasket-tiered-market.lovable.app/admin](https://medbasket-tiered-market.lovable.app/admin)
+- **Cart Page:** [https://medbasket-tiered-market.lovable.app/cart](https://medbasket-tiered-market.lovable.app/cart)
+- **GitHub Repository:** [https://github.com/MennaEzzelarab/medsupply-market](https://github.com/MennaEzzelarab/medsupply-market)
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+---
 
-## Development
+## 2. Project Architecture & Scope
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+### Customer Experience
+1. **Home / Storefront (`/`)**:
+   - Filter products by Brand and Category.
+   - Real-time search across names and descriptions with URL persistence (`?q=`).
+   - Sorting options (Name A–Z, Price: Low to High, Price: High to Low based on lowest tier).
+   - Radio-selectable tier options directly on product cards with instant "Add to Cart" and toast confirmation linking directly to `/cart`.
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+2. **Product Details (`/product/:id`)**:
+   - Server-side prefetching with TanStack Start route loaders and query cache priming.
+   - Dynamic meta tags (`<title>`, `og:title`, `og:image`, canonical link).
+   - Interactive tier selection, live price computation, and quantity controls.
+   - Graceful fallback for non-existent or invalid UUIDs without crashing.
+
+3. **Shopping Cart (`/cart`)**:
+   - Different tiers of the same product are tracked as **distinct line items**.
+   - Displays both **customer bundle quantity** and derived **internal pack quantity** (`units_per_bundle × bundle_qty`).
+   - Line total calculation: $\text{bundle\_price} \times \text{bundle\_qty}$ (bundle price is **not** per pack).
+   - Robust quantity inputs: allows empty typing and auto-clamps on blur/Enter (1–99).
+   - **Real-Time Catalog Sync**: Background query checks existing cart items against live catalog prices/tiers. Displays dismissible change banners and toast alerts if an admin alters pricing or removes a tier.
+   - "Clear Cart" and item removals backed by accessible confirmation dialogs.
+   - Cart totals computed in integer fils to eliminate floating-point rounding errors.
+
+### Store Administration (`/admin`)
+4. **Catalog & Tier Management**:
+   - Full CRUD for Products, Brands, and Categories.
+   - **Dynamic Pricing Tier Editor**: Add or remove any number of bundle tiers per product.
+   - **Atomic Persistence**: Uses a PostgreSQL `save_product` RPC to validate and diff tiers in a single transaction (retains tier IDs, deletes removed tiers, rolls back cleanly on error).
+   - **Referential Integrity**: Brands and categories are protected by `ON DELETE RESTRICT`; deleting a referenced brand/category warns the user with product usage counts rather than corrupting catalog data.
+   - Destruction confirmations handled with styled `AlertDialog` components.
+
+---
+
+## 3. Seed Data Specification
+
+The database is pre-seeded with the required test products across 2 brands and 2 categories:
+
+| Product | Brand | Category | Available Pricing Tiers |
+| :--- | :--- | :--- | :--- |
+| **Product A — Sterile Gauze Pads** | MediCare | Wound Care | • 1 pack: **2.250 KWD** |
+| **Product B — Digital Thermometer** | PureHealth | Diagnostics | • 1 pack: **7.000 KWD**<br>• 4 packs: **26.000 KWD** |
+| **Product C — Nitrile Exam Gloves** | PureHealth | Wound Care | • 1 pack: **5.500 KWD**<br>• 4 packs: **19.500 KWD**<br>• 12 packs: **55.000 KWD** |
+
+*All prices display in Kuwaiti Dinars (KWD) formatted to 3 decimal places.*
+
+---
+
+## 4. Tech Stack
+
+- **Frontend:** React 19, TypeScript, TanStack Start v1 (SSR & file-based routing), TanStack Query v5.
+- **Styling:** Tailwind CSS v4, Lucide Icons, shadcn/ui accessible components.
+- **Theme Palette:** Medical Teal (`#0caca7` primary, `#087e7a` high-contrast text, `#e6f7f6` subtle background tint).
+- **Backend & Database:** PostgreSQL via Lovable Cloud (Supabase engine) with Row-Level Security, strict foreign keys, CHECK constraints for positive prices/units, and custom atomic RPC functions.
+- **Client State:** `localStorage` cart persistence with schema validation and sanitization on load.
+- **Testing:** Vitest + React Testing Library (47 automated tests covering pricing math, catalog filtering/sorting, routing, metadata, and cart reconciliation).
+
+---
+
+## 5. AI Tools & Technologies Used
+
+- **Lovable:** Primary AI-assisted full-stack development environment for initial scaffolding, database schema migrations, and rapid UI generation.
+- **Google Antigravity:** AI coding assistant used for implementing custom business logic, test suites, real-time cart reconciliation, edge-case hardening, and assessment compliance reviews.
+
+---
+
+## 6. Known Limitations
+
+- **Authentication:** In accordance with the assessment brief, user authentication and role-based access control were out of scope; the `/admin` dashboard is publicly accessible.
+- **Image Uploads:** Product images are configured via direct image URLs rather than a dedicated multipart media storage bucket.
+- **E-Commerce Checkout:** Order processing, inventory deduction, shipping, and payment gateway integrations were out of scope.
+- **Offline RPC Test:** `src/lib/catalog.rpc.test.ts` connects directly to the live hosted PostgreSQL database to verify transaction rollback; running this test requires an active internet connection.
+
+---
+
+## 7. Local Setup & Running Tests
+
+### Prerequisites
+- Node.js 20+ or Bun installed.
+
+### Installation
+```bash
+# Clone repository
+git clone https://github.com/MennaEzzelarab/medsupply-market.git
+cd medsupply-market
+
+# Install dependencies
+npm install
+# or
+bun install
+```
+
+### Development Server
+```bash
 npm run dev
+```
+Open `http://localhost:3000` in your browser.
+
+### Running Automated Tests
+```bash
+npm test
 ```
