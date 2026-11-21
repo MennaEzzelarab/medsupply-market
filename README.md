@@ -38,7 +38,7 @@ drizzle/
 ## Local Setup
 
 ### Prerequisites
-- Node.js 20+ or Bun installed.
+- Node.js 22 (tested) or Bun installed.
 
 ### Installation
 ```bash
