@@ -404,7 +404,7 @@ function ProductDialog({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft 
                 <Input
                   type="number"
                   min={0.001}
-                  step={0.001}
+                  step={0.5}
                   value={t.bundle_price}
                   onChange={(e) => setTier(i, { bundle_price: e.target.value })}
                   aria-label="Bundle price"
