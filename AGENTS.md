@@ -34,3 +34,4 @@ use the editor.
 - Normalize bundle quantities at every cart boundary and validate restored lines; keep cart input drafts local until blur to prevent corrupt persistence.
 - Save products and tier diffs through the security-invoker save_product RPC, preserving tier IDs and using a deferrable pack-count uniqueness constraint so all edits succeed or roll back together.
 - Restrict brand/category deletion while referenced, and check usage before deleting so catalog products cannot be removed accidentally.
+- Detail routes fetch in a route loader that primes the Query cache with ensureQueryData and returns the row, so head() can title the page and its share tags from loaderData; resolve malformed ids to null (a not-found page) rather than a query error.

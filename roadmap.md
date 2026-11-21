@@ -8,3 +8,4 @@
 - [x] Add a confirmed Clear cart action.
 - [x] Replace admin browser confirmations with AlertDialog.
 - [x] Add View cart actions to add-to-cart toasts and verify existing tests.
+- [x] Product details page title and og:title from loader data; unknown ids stay safe.
